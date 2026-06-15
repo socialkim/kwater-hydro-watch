@@ -458,7 +458,9 @@ async function apiGet(path){
     clearTimeout(to);
     if(!r.ok) throw new Error("HTTP "+r.status);
     const j = await r.json();
-    if(j && typeof j==="object" && "content" in j) return j.content||[];
+    // HRFCO content 배열에 null 빈 슬롯이 섞여 옴 → 실제 객체만 통과
+    if(j && typeof j==="object" && "content" in j)
+      return (j.content||[]).filter(x => x && typeof x === "object");
     throw new Error("응답 형식 오류");
   }catch(e){
     clearTimeout(to);
