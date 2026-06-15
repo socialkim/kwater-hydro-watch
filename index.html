@@ -138,7 +138,8 @@ main{max-width:1340px;margin:0 auto;padding:20px 18px 60px}
 .gauge{height:8px;border-radius:5px;background:var(--panel-2);overflow:hidden;margin-top:4px;position:relative;border:1px solid var(--border)}
 .gauge .fill{height:100%;border-radius:5px;transition:width .5s}
 .gauge-labels{display:flex;justify-content:space-between;font-size:10px;color:var(--text-faint);margin-top:3px}
-.spark{margin-top:10px;height:38px;width:100%}
+.spark-wrap{position:relative;height:40px;width:100%;margin-top:10px}
+.spark-wrap canvas{position:absolute;top:0;left:0;width:100%!important;height:100%!important}
 .thresh-bar{display:flex;height:9px;border-radius:5px;overflow:hidden;margin-top:6px;position:relative;border:1px solid var(--border)}
 .thresh-bar .seg{height:100%}
 .thresh-marker{position:absolute;top:-3px;width:2px;height:15px;background:var(--text);border-radius:2px;z-index:2}
@@ -609,7 +610,7 @@ function fillDamCard(d,last,series,risk){
     <div class="gauge"><div class="fill" style="width:${pct}%;background:${COLORS[risk.cls]}"></div>
       ${limPct!==null?`<div class="thresh-marker" style="left:${limPct}%"></div>`:""}</div>
     <div class="gauge-labels"><span>저수위 게이지</span><span>${last?ymdhmLabel(last.ymdhm):""}</span></div>
-    <canvas class="spark" id="spark-${d.dmobscd}"></canvas>`;
+    <div class="spark-wrap"><canvas id="spark-${d.dmobscd}"></canvas></div>`;
   // sparkline
   drawSpark(`spark-${d.dmobscd}`, series.map(x=>num(x.swl)), COLORS[risk.cls]);
 }
