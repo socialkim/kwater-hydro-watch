@@ -1,0 +1,7 @@
+# K-water 수문 MCP 서버 의존성
+# 설치:  pip install -r requirements.txt
+#
+# fastmcp : MCP 서버 프레임워크 (Model Context Protocol)
+#           표준 라이브러리(urllib/json)만으로 HTTP 호출하므로
+#           추가 HTTP 라이브러리는 필요하지 않습니다.
+fastmcp>=2.0

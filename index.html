@@ -1,0 +1,1115 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>수문(水門) 워치 — 실시간 댐·하천·강수 모니터</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+<style>
+:root{
+  --bg:#f4f6f9; --panel:#ffffff; --panel-2:#f8fafc; --border:#e3e8ef;
+  --text:#1a2433; --text-dim:#5b6675; --text-faint:#8a94a3;
+  --accent:#1761c4; --accent-dim:#e7f0fb;
+  --ok:#1f9d57; --ok-bg:#e6f6ed;
+  --warn:#e08a00; --warn-bg:#fdf3e0;
+  --danger:#d63838; --danger-bg:#fdecec;
+  --crit:#9c1b1b; --crit-bg:#f7e0e0;
+  --shadow:0 1px 3px rgba(20,30,50,.06),0 1px 2px rgba(20,30,50,.04);
+  --shadow-lg:0 8px 28px rgba(20,30,50,.12);
+  --radius:12px; --radius-sm:8px;
+  --mono:"SF Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+html[data-theme="dark"]{
+  --bg:#0e141d; --panel:#18212e; --panel-2:#141c27; --border:#27323f;
+  --text:#e6ecf3; --text-dim:#9fadbd; --text-faint:#6c7886;
+  --accent:#4d9bff; --accent-dim:#16273d;
+  --ok:#3ec07e; --ok-bg:#10291c;
+  --warn:#f0a93a; --warn-bg:#2c2310;
+  --danger:#f06363; --danger-bg:#2e1414;
+  --crit:#ff8a8a; --crit-bg:#391616;
+  --shadow:0 1px 3px rgba(0,0,0,.4);
+  --shadow-lg:0 8px 28px rgba(0,0,0,.5);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  font-family:"Pretendard","Apple SD Gothic Neo","Malgun Gothic",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  background:var(--bg); color:var(--text); line-height:1.5; font-size:14px;
+  -webkit-font-smoothing:antialiased;
+}
+a{color:var(--accent)}
+button{font-family:inherit;cursor:pointer}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:6px}
+
+/* HEADER */
+header{
+  position:sticky;top:0;z-index:1000;background:var(--panel);
+  border-bottom:1px solid var(--border);box-shadow:var(--shadow);
+}
+.hdr-top{display:flex;align-items:center;gap:14px;padding:10px 18px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:18px;letter-spacing:-.3px}
+.brand .logo{
+  width:34px;height:34px;border-radius:9px;display:grid;place-items:center;
+  background:linear-gradient(135deg,#1761c4,#2aa6e0);color:#fff;font-size:18px;flex:none;
+}
+.brand small{font-weight:500;color:var(--text-dim);font-size:11.5px;display:block;letter-spacing:0}
+.search-wrap{position:relative;flex:1;min-width:200px;max-width:440px}
+.search-wrap input{
+  width:100%;padding:9px 12px 9px 34px;border:1px solid var(--border);
+  border-radius:10px;background:var(--panel-2);color:var(--text);font-size:13.5px;outline:none;
+}
+.search-wrap input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-dim)}
+.search-wrap .si{position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--text-faint)}
+.search-results{
+  position:absolute;top:46px;left:0;right:0;background:var(--panel);border:1px solid var(--border);
+  border-radius:10px;box-shadow:var(--shadow-lg);max-height:340px;overflow:auto;z-index:1200;display:none;
+}
+.search-results.open{display:block}
+.sr-item{padding:9px 13px;border-bottom:1px solid var(--border);cursor:pointer;display:flex;align-items:center;gap:9px}
+.sr-item:last-child{border-bottom:none}
+.sr-item:hover{background:var(--accent-dim)}
+.sr-tag{font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:20px;flex:none}
+.sr-tag.dam{background:var(--accent-dim);color:var(--accent)}
+.sr-tag.wl{background:var(--ok-bg);color:var(--ok)}
+.sr-tag.rf{background:var(--warn-bg);color:var(--warn)}
+.sr-name{font-weight:600;font-size:13.5px}
+.sr-addr{font-size:11.5px;color:var(--text-faint);margin-left:auto;white-space:nowrap}
+.hdr-actions{display:flex;align-items:center;gap:8px;margin-left:auto}
+.icon-btn{
+  width:38px;height:38px;border:1px solid var(--border);background:var(--panel-2);border-radius:10px;
+  display:grid;place-items:center;font-size:17px;color:var(--text-dim);transition:.15s;
+}
+.icon-btn:hover{background:var(--accent-dim);color:var(--accent)}
+.upd-time{font-size:11.5px;color:var(--text-faint);white-space:nowrap}
+.auto-pill{
+  display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-dim);
+  padding:7px 11px;border:1px solid var(--border);border-radius:20px;background:var(--panel-2);
+}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--text-faint)}
+.dot.live{background:var(--ok);box-shadow:0 0 0 0 var(--ok);animation:pulse 2s infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(31,157,87,.5)}70%{box-shadow:0 0 0 7px rgba(31,157,87,0)}100%{box-shadow:0 0 0 0 rgba(31,157,87,0)}}
+
+/* TABS */
+.tabs{display:flex;gap:2px;padding:0 12px;overflow-x:auto;border-top:1px solid var(--border)}
+.tab{
+  padding:11px 15px;border:none;background:none;color:var(--text-dim);font-size:13.5px;font-weight:600;
+  border-bottom:2.5px solid transparent;white-space:nowrap;transition:.15s;
+}
+.tab:hover{color:var(--text)}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+
+/* LAYOUT */
+main{max-width:1340px;margin:0 auto;padding:20px 18px 60px}
+.view{display:none;animation:fade .25s}
+.view.active{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.view-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:12px}
+.view-head h2{font-size:19px;font-weight:800;letter-spacing:-.3px}
+.view-head .sub{font-size:12.5px;color:var(--text-dim);font-weight:400;margin-top:2px}
+
+/* LEGEND */
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--text-dim)}
+.legend .li{display:flex;align-items:center;gap:6px}
+.swatch{width:13px;height:13px;border-radius:4px;flex:none}
+.s-ok{background:var(--ok)} .s-warn{background:var(--warn)} .s-danger{background:var(--danger)} .s-crit{background:var(--crit)} .s-na{background:var(--text-faint)}
+
+/* CARDS GRID */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:14px}
+.card{
+  background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);
+  padding:15px;box-shadow:var(--shadow);transition:.15s;position:relative;overflow:hidden;
+}
+.card.clickable{cursor:pointer}
+.card.clickable:hover{box-shadow:var(--shadow-lg);transform:translateY(-2px)}
+.card .stripe{position:absolute;left:0;top:0;bottom:0;width:4px}
+.st-ok{background:var(--ok)} .st-warn{background:var(--warn)} .st-danger{background:var(--danger)} .st-crit{background:var(--crit)} .st-na{background:var(--text-faint)}
+.card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:10px}
+.card-name{font-weight:700;font-size:15.5px;letter-spacing:-.2px}
+.card-sub{font-size:11.5px;color:var(--text-faint);margin-top:1px}
+.badge{font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;white-space:nowrap;flex:none}
+.b-ok{background:var(--ok-bg);color:var(--ok)} .b-warn{background:var(--warn-bg);color:var(--warn)}
+.b-danger{background:var(--danger-bg);color:var(--danger)} .b-crit{background:var(--crit-bg);color:var(--crit)}
+.b-na{background:var(--panel-2);color:var(--text-faint)}
+.metrics{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:11px 0}
+.metric .ml{font-size:11px;color:var(--text-faint)}
+.metric .mv{font-size:17px;font-weight:700;font-variant-numeric:tabular-nums}
+.metric .mv small{font-size:11px;font-weight:500;color:var(--text-dim)}
+.gauge{height:8px;border-radius:5px;background:var(--panel-2);overflow:hidden;margin-top:4px;position:relative;border:1px solid var(--border)}
+.gauge .fill{height:100%;border-radius:5px;transition:width .5s}
+.gauge-labels{display:flex;justify-content:space-between;font-size:10px;color:var(--text-faint);margin-top:3px}
+.spark{margin-top:10px;height:38px;width:100%}
+.thresh-bar{display:flex;height:9px;border-radius:5px;overflow:hidden;margin-top:6px;position:relative;border:1px solid var(--border)}
+.thresh-bar .seg{height:100%}
+.thresh-marker{position:absolute;top:-3px;width:2px;height:15px;background:var(--text);border-radius:2px;z-index:2}
+
+/* TABLE */
+.tbl-wrap{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);overflow:auto;box-shadow:var(--shadow)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{padding:10px 13px;text-align:left;white-space:nowrap}
+th{background:var(--panel-2);color:var(--text-dim);font-weight:700;font-size:11.5px;position:sticky;top:0;border-bottom:1px solid var(--border)}
+td{border-bottom:1px solid var(--border);font-variant-numeric:tabular-nums}
+tr.clickable{cursor:pointer}
+tr.clickable:hover td{background:var(--accent-dim)}
+.num{text-align:right;font-variant-numeric:tabular-nums}
+.pill{font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px}
+
+/* DETAIL PANEL */
+.detail-layout{display:grid;grid-template-columns:340px 1fr;gap:16px}
+@media(max-width:880px){.detail-layout{grid-template-columns:1fr}}
+.spec-table td{font-size:12.5px;padding:7px 11px}
+.spec-table td:first-child{color:var(--text-dim);width:48%}
+.spec-table td:last-child{text-align:right;font-weight:600}
+.chart-box{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:15px;box-shadow:var(--shadow)}
+.chart-box h3{font-size:14px;margin-bottom:10px;font-weight:700}
+.canvas-holder{position:relative;height:300px}
+.range-btns{display:flex;gap:5px;flex-wrap:wrap}
+.range-btns button{
+  padding:6px 12px;border:1px solid var(--border);background:var(--panel-2);border-radius:8px;
+  font-size:12px;color:var(--text-dim);font-weight:600;
+}
+.range-btns button.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+
+/* MAP */
+#map{height:560px;border-radius:var(--radius);border:1px solid var(--border);box-shadow:var(--shadow);z-index:1}
+.map-toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.layer-toggle{display:flex;align-items:center;gap:7px;padding:7px 12px;border:1px solid var(--border);border-radius:20px;background:var(--panel);font-size:12.5px;font-weight:600;cursor:pointer;user-select:none}
+.layer-toggle input{accent-color:var(--accent)}
+.leaflet-popup-content{font-family:inherit;margin:11px 13px}
+.pop-name{font-weight:700;font-size:14px;margin-bottom:5px}
+.pop-row{font-size:12px;color:var(--text-dim);display:flex;justify-content:space-between;gap:14px;padding:1px 0}
+.pop-btn{margin-top:8px;width:100%;padding:6px;background:var(--accent);color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:700}
+
+/* STATES */
+.loader{display:inline-block;width:18px;height:18px;border:2.5px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle}
+@keyframes spin{to{transform:rotate(360deg)}}
+.empty{padding:50px 20px;text-align:center;color:var(--text-faint);font-size:14px}
+.empty .ei{font-size:40px;margin-bottom:10px;opacity:.5}
+.errbox{padding:14px 16px;background:var(--danger-bg);border:1px solid var(--danger);border-radius:10px;color:var(--danger);font-size:13px;margin-bottom:14px;display:flex;gap:10px;align-items:flex-start}
+.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--text);color:var(--bg);padding:11px 20px;border-radius:30px;font-size:13px;font-weight:600;box-shadow:var(--shadow-lg);z-index:3000;transition:.3s;opacity:0}
+.toast.show{transform:translateX(-50%);opacity:1}
+
+/* SETTINGS / FORECAST / BRIEFING */
+.panel-card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow);max-width:640px}
+.field{margin-bottom:16px}
+.field label{display:block;font-size:13px;font-weight:600;margin-bottom:6px}
+.field .hint{font-size:11.5px;color:var(--text-faint);margin-top:5px;font-weight:400}
+.field input,.field select{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:9px;background:var(--panel-2);color:var(--text);font-size:13.5px;outline:none}
+.field input:focus,.field select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-dim)}
+.btn{padding:10px 18px;background:var(--accent);color:#fff;border:none;border-radius:9px;font-weight:700;font-size:13.5px}
+.btn.sec{background:var(--panel-2);color:var(--text);border:1px solid var(--border)}
+.dam-selector{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px}
+.dam-selector select{padding:9px 12px;border:1px solid var(--border);border-radius:9px;background:var(--panel);color:var(--text);font-size:13.5px;min-width:180px}
+.fc-days{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:10px;margin-top:14px}
+.fc-day{background:var(--panel-2);border:1px solid var(--border);border-radius:10px;padding:12px;text-align:center}
+.fc-day .d{font-size:12px;color:var(--text-dim);font-weight:600}
+.fc-day .rain{font-size:20px;font-weight:800;margin:6px 0;color:var(--accent)}
+.fc-day .prob{font-size:11.5px;color:var(--text-faint)}
+.now-strip{display:flex;gap:18px;flex-wrap:wrap;background:linear-gradient(135deg,var(--accent),#2aa6e0);color:#fff;border-radius:var(--radius);padding:16px 20px;margin-top:14px}
+.now-strip .nb{text-align:center}
+.now-strip .nb .nv{font-size:24px;font-weight:800}
+.now-strip .nb .nl{font-size:11px;opacity:.9}
+.briefing{white-space:pre-wrap;font-size:14px;line-height:1.7;background:var(--panel-2);border:1px solid var(--border);border-radius:10px;padding:18px;margin-top:14px;font-family:var(--mono)}
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin-bottom:18px}
+.kpi{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;box-shadow:var(--shadow)}
+.kpi .kl{font-size:12px;color:var(--text-dim)}
+.kpi .kv{font-size:24px;font-weight:800;margin-top:3px;font-variant-numeric:tabular-nums}
+.kpi .kv.ok{color:var(--ok)} .kpi .kv.warn{color:var(--warn)} .kpi .kv.danger{color:var(--danger)}
+footer{text-align:center;padding:22px;color:var(--text-faint);font-size:11.5px;border-top:1px solid var(--border);margin-top:30px}
+@media(max-width:600px){
+  .brand small{display:none}
+  main{padding:14px 12px 50px}
+  .metrics{grid-template-columns:1fr 1fr}
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="hdr-top">
+    <div class="brand">
+      <div class="logo">💧</div>
+      <div>수문 워치<small>실시간 댐·하천·강수 모니터</small></div>
+    </div>
+    <div class="search-wrap">
+      <span class="si">🔍</span>
+      <input id="globalSearch" type="text" placeholder="관측소 검색 (댐·수위·강수 통합)…" autocomplete="off">
+      <div class="search-results" id="searchResults"></div>
+    </div>
+    <div class="hdr-actions">
+      <div class="auto-pill"><span class="dot" id="liveDot"></span><span id="autoLabel">수동</span></div>
+      <span class="upd-time" id="updTime">—</span>
+      <button class="icon-btn" id="refreshBtn" title="새로고침">⟳</button>
+      <button class="icon-btn" id="themeBtn" title="다크모드">🌙</button>
+    </div>
+  </div>
+  <nav class="tabs" id="tabs">
+    <button class="tab active" data-view="dashboard">대시보드</button>
+    <button class="tab" data-view="map">지도</button>
+    <button class="tab" data-view="dam">댐 상세</button>
+    <button class="tab" data-view="waterlevel">하천 수위</button>
+    <button class="tab" data-view="rainfall">강수 현황</button>
+    <button class="tab" data-view="forecast">기상 예보</button>
+    <button class="tab" data-view="briefing">수문 브리핑</button>
+    <button class="tab" data-view="settings">설정</button>
+  </nav>
+</header>
+
+<main>
+  <!-- DASHBOARD -->
+  <section class="view active" id="view-dashboard">
+    <div class="view-head">
+      <div><h2>전국 댐 현황</h2><div class="sub" id="dashSub">주요 다목적댐 실시간 저수위·유입·방류 모니터링</div></div>
+      <div class="legend">
+        <span class="li"><span class="swatch s-ok"></span>정상</span>
+        <span class="li"><span class="swatch s-warn"></span>제한수위 초과</span>
+        <span class="li"><span class="swatch s-crit"></span>계획홍수위 초과</span>
+        <span class="li"><span class="swatch s-na"></span>기준없음</span>
+      </div>
+    </div>
+    <div class="kpi-row" id="dashKpis"></div>
+    <div id="dashError"></div>
+    <div class="grid" id="damGrid"><div class="empty"><div class="ei"><span class="loader"></span></div>댐 현황을 불러오는 중…</div></div>
+  </section>
+
+  <!-- MAP -->
+  <section class="view" id="view-map">
+    <div class="view-head"><div><h2>관측소 지도</h2><div class="sub">마커 색상 = 위험도. 클릭하면 상세 패널로 이동합니다.</div></div>
+      <div class="legend">
+        <span class="li"><span class="swatch s-ok"></span>정상</span>
+        <span class="li"><span class="swatch s-warn"></span>주의</span>
+        <span class="li"><span class="swatch s-danger"></span>경보</span>
+        <span class="li"><span class="swatch s-crit"></span>위험</span>
+      </div>
+    </div>
+    <div class="map-toolbar">
+      <label class="layer-toggle"><input type="checkbox" id="lyrDam" checked> 댐 <span id="cntDam" class="card-sub"></span></label>
+      <label class="layer-toggle"><input type="checkbox" id="lyrWl" checked> 수위 <span id="cntWl" class="card-sub"></span></label>
+      <label class="layer-toggle"><input type="checkbox" id="lyrRf"> 강수 <span id="cntRf" class="card-sub"></span></label>
+      <span class="card-sub" id="mapStatus"></span>
+    </div>
+    <div id="map"></div>
+  </section>
+
+  <!-- DAM DETAIL -->
+  <section class="view" id="view-dam">
+    <div class="view-head"><div><h2 id="damDetailTitle">댐 상세</h2><div class="sub" id="damDetailSub">상단 검색 또는 대시보드 카드에서 댐을 선택하세요.</div></div></div>
+    <div class="dam-selector">
+      <select id="damSelect"></select>
+      <div class="range-btns" id="damRange">
+        <button data-time="10M" data-h="24">24시간(10분)</button>
+        <button data-time="1H" data-h="72" class="active">3일(1시간)</button>
+        <button data-time="1H" data-h="168">7일(1시간)</button>
+        <button data-time="1D" data-h="720">30일(일)</button>
+      </div>
+    </div>
+    <div id="damDetailBody"><div class="empty"><div class="ei">🏞️</div>댐을 선택하면 시계열·제원이 표시됩니다.</div></div>
+  </section>
+
+  <!-- WATERLEVEL -->
+  <section class="view" id="view-waterlevel">
+    <div class="view-head"><div><h2>하천 수위</h2><div class="sub">위험 단계 지점이 상단에 정렬됩니다. 임계값(주의/경계/경보/심각) 대비 현재 수위.</div></div>
+      <div class="legend">
+        <span class="li"><span class="swatch s-ok"></span>정상</span>
+        <span class="li"><span class="swatch s-warn"></span>주의/경계</span>
+        <span class="li"><span class="swatch s-danger"></span>경보</span>
+        <span class="li"><span class="swatch s-crit"></span>심각</span>
+        <span class="li"><span class="swatch s-na"></span>기준없음</span>
+      </div>
+    </div>
+    <div class="field" style="max-width:380px;margin-bottom:14px">
+      <input id="wlSearch" type="text" placeholder="수위 관측소 이름 검색…">
+    </div>
+    <div id="wlError"></div>
+    <div id="wlBody"><div class="empty"><div class="ei"><span class="loader"></span></div>수위 관측소를 불러오는 중…</div></div>
+  </section>
+
+  <!-- RAINFALL -->
+  <section class="view" id="view-rainfall">
+    <div class="view-head"><div><h2>강수 현황</h2><div class="sub">강수량 관측소 선택 → 시계열·누적·막대 차트</div></div></div>
+    <div class="dam-selector">
+      <select id="rfSelect"><option value="">강수 관측소 선택…</option></select>
+      <div class="range-btns" id="rfRange">
+        <button data-time="10M" data-h="24">24시간(10분)</button>
+        <button data-time="1H" data-h="72" class="active">3일(1시간)</button>
+        <button data-time="1H" data-h="168">7일(1시간)</button>
+      </div>
+    </div>
+    <div id="rfError"></div>
+    <div id="rfBody"><div class="empty"><div class="ei">🌧️</div>강수 관측소를 선택하세요.</div></div>
+  </section>
+
+  <!-- FORECAST -->
+  <section class="view" id="view-forecast">
+    <div class="view-head"><div><h2>기상 예보</h2><div class="sub">선택 댐 유역 · Open-Meteo 7일 강수 예보 + 현재 실황</div></div></div>
+    <div class="dam-selector"><select id="fcSelect"></select><button class="btn sec" id="fcReload">새로고침</button></div>
+    <div id="fcBody"><div class="empty"><div class="ei">🌦️</div>댐을 선택하면 유역 예보를 불러옵니다.</div></div>
+  </section>
+
+  <!-- BRIEFING -->
+  <section class="view" id="view-briefing">
+    <div class="view-head"><div><h2>수문 브리핑</h2><div class="sub">댐 실시간 데이터 + 강수 예보 종합 자동 브리핑</div></div></div>
+    <div class="dam-selector">
+      <select id="brSelect"></select>
+      <button class="btn" id="brGen">브리핑 생성</button>
+      <button class="btn sec" id="brCopy">📋 복사</button>
+    </div>
+    <div id="brBody"><div class="empty"><div class="ei">📋</div>댐을 선택하고 “브리핑 생성”을 누르세요.</div></div>
+  </section>
+
+  <!-- SETTINGS -->
+  <section class="view" id="view-settings">
+    <div class="view-head"><div><h2>설정</h2><div class="sub">인증키와 자동 새로고침 주기를 설정합니다. (브라우저 localStorage에 저장)</div></div></div>
+    <div class="panel-card">
+      <div class="field">
+        <label>HRFCO Open API 인증키</label>
+        <input id="setKey" type="text" placeholder="발급받은 인증키 입력">
+        <div class="hint">한강홍수통제소(hrfco.go.kr)에서 발급. 기본값은 검증된 데모키입니다.</div>
+      </div>
+      <div class="field">
+        <label>자동 새로고침 주기</label>
+        <select id="setAuto">
+          <option value="0">사용 안 함 (수동)</option>
+          <option value="60">1분</option>
+          <option value="300">5분</option>
+          <option value="600">10분</option>
+          <option value="1800">30분</option>
+        </select>
+        <div class="hint">대시보드·수위·지도 데이터를 주기적으로 새로고침합니다.</div>
+      </div>
+      <div class="field">
+        <label>요청 타임아웃 (초)</label>
+        <select id="setTimeout"><option value="15">15초</option><option value="30">30초</option><option value="60">60초</option></select>
+      </div>
+      <div style="display:flex;gap:10px;margin-top:6px">
+        <button class="btn" id="setSave">저장</button>
+        <button class="btn sec" id="setReset">데모키로 초기화</button>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    데이터 출처: <strong>한강홍수통제소(HRFCO) Open API</strong> · 기상 예보: <strong>Open-Meteo</strong><br>
+    수문 워치 — 순수 정적 단일 페이지 앱 (백엔드 없음, 브라우저 직접 호출) · 본 화면 정보는 참고용입니다.
+  </footer>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+  integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script>
+/* ====================== CONFIG / STATE ====================== */
+const DEMO_KEY = "9A3A6678-2E77-43F0-841B-F2368978107B";
+const BASE = "https://api.hrfco.go.kr";
+const LS = {
+  key:"hw_key", auto:"hw_auto", theme:"hw_theme", timeout:"hw_timeout"
+};
+// 주요 댐 폴백 좌표 (lon/lat 없거나 파싱 실패 시) — SPEC §8
+const DAM_FALLBACK = {
+  "대전":[127.385,36.351],"소양강댐":[127.818,37.948],"충주댐":[127.997,37.000],
+  "대청댐":[127.480,36.476],"안동댐":[128.770,36.572],"합천댐":[128.034,35.523],
+  "섬진강댐":[127.121,35.594],"주암댐":[127.236,35.057],"서울":[126.978,37.566]
+};
+// 대시보드에 우선 노출할 주요 댐 (없으면 전체에서 자동 선별)
+const FEATURED = ["충주댐","소양강댐","대청댐","안동댐","합천댐","섬진강댐","주암댐","남강댐","임하댐","용담댐","밀양댐","횡성댐","보령댐","군위댐"];
+
+const state = {
+  key: localStorage.getItem(LS.key) || DEMO_KEY,
+  auto: parseInt(localStorage.getItem(LS.auto)||"0",10),
+  timeout: parseInt(localStorage.getItem(LS.timeout)||"15",10),
+  dams:[], wls:[], rfs:[],            // info lists
+  damData:{},                          // dmobscd -> latest snapshot
+  wlData:{},                           // wlobscd -> latest snapshot
+  autoTimer:null,
+  map:null, layers:{}, markerIdx:{}, mapBuilt:false,
+  charts:{}
+};
+
+/* ====================== UTILS ====================== */
+const $ = s=>document.querySelector(s);
+const $$ = s=>[...document.querySelectorAll(s)];
+function num(v){ if(v===null||v===undefined) return NaN; const s=String(v).trim(); if(s===""||s==="-") return NaN; const n=parseFloat(s); return isNaN(n)?NaN:n; }
+function hasv(v){ return v!==null&&v!==undefined&&String(v).trim()!==""; }
+function fmt(v,d=1){ const n=num(v); return isNaN(n)?"–":n.toLocaleString("ko-KR",{minimumFractionDigits:d,maximumFractionDigits:d}); }
+function fmt0(v){ const n=num(v); return isNaN(n)?"–":Math.round(n).toLocaleString("ko-KR"); }
+// DMS "127-59-44" -> decimal  (SPEC §6)
+function dms2dec(s){ if(!hasv(s)) return NaN; const p=String(s).trim().split("-").map(Number); if(p.length<2||isNaN(p[0])) return NaN; const[d,m,sec]=p; return d+(m||0)/60+(sec||0)/3600; }
+// "YYYYMMDDHHmm" -> Date
+function parseYmdhm(s){ s=String(s).trim(); if(s.length<8) return null;
+  const y=+s.slice(0,4),mo=+s.slice(4,6)-1,d=+s.slice(6,8),h=+s.slice(8,10)||0,mi=+s.slice(10,12)||0;
+  return new Date(y,mo,d,h,mi); }
+function ymdhmLabel(s,withDate=true){ const dt=parseYmdhm(s); if(!dt) return s;
+  const p=n=>String(n).padStart(2,"0");
+  return (withDate?`${p(dt.getMonth()+1)}/${p(dt.getDate())} `:"")+`${p(dt.getHours())}:${p(dt.getMinutes())}`; }
+function nowYmdhm(offsetMs=0){ const d=new Date(Date.now()+offsetMs); const p=n=>String(n).padStart(2,"0");
+  return `${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}${p(d.getHours())}${p(d.getMinutes())}`; }
+function nowLabel(){ const d=new Date(); const p=n=>String(n).padStart(2,"0");
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`; }
+function toast(msg){ const t=$("#toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove("show"),2600); }
+
+// fetch JSON with timeout + try/catch — returns content array
+async function apiGet(path){
+  const url = `${BASE}/${state.key}/${path}`;
+  const ctrl = new AbortController();
+  const to = setTimeout(()=>ctrl.abort(), state.timeout*1000);
+  try{
+    const r = await fetch(url, {signal:ctrl.signal});
+    clearTimeout(to);
+    if(!r.ok) throw new Error("HTTP "+r.status);
+    const j = await r.json();
+    if(j && typeof j==="object" && "content" in j) return j.content||[];
+    throw new Error("응답 형식 오류");
+  }catch(e){
+    clearTimeout(to);
+    if(e.name==="AbortError") throw new Error("요청 시간 초과 (타임아웃)");
+    throw e;
+  }
+}
+async function fetchJSON(url){
+  const ctrl=new AbortController(); const to=setTimeout(()=>ctrl.abort(),state.timeout*1000);
+  try{ const r=await fetch(url,{signal:ctrl.signal}); clearTimeout(to); if(!r.ok) throw new Error("HTTP "+r.status); return await r.json(); }
+  catch(e){ clearTimeout(to); if(e.name==="AbortError") throw new Error("요청 시간 초과"); throw e; }
+}
+// 시계열: 내림차순 응답 가능 → ymdhm 오름차순 정렬
+function sortAsc(arr){ return [...arr].sort((a,b)=>String(a.ymdhm).localeCompare(String(b.ymdhm))); }
+// 현재 시각(부분 집계 중인 시간대) 행은 값이 비어 옴 → key 값이 채워진 최신 행을 반환
+function latestValued(arr, key){ for(let i=arr.length-1;i>=0;i--){ if(!isNaN(num(arr[i][key]))) return arr[i]; } return arr.length?arr[arr.length-1]:null; }
+
+/* ====================== RISK CLASSIFICATION ====================== */
+// 댐: swl vs fldlmtwl(제한수위), pfh(계획홍수위)  (SPEC §2)
+function damRisk(swl, fldlmtwl, pfh){
+  const s=num(swl), lim=num(fldlmtwl), p=num(pfh);
+  if(isNaN(s)) return {k:"na",label:"데이터없음",cls:"na"};
+  if(!isNaN(p) && s>=p) return {k:"crit",label:"계획홍수위 초과",cls:"crit"};
+  if(!isNaN(lim) && s>=lim) return {k:"warn",label:"제한수위 초과",cls:"warn"};
+  return {k:"ok",label:"정상",cls:"ok"};
+}
+// 수위: wl vs attwl<wrnwl<almwl<srswl  (SPEC §3) 공백 임계값 제외
+function wlRisk(wl, info){
+  const w=num(wl);
+  if(isNaN(w)) return {k:"na",label:"데이터없음",cls:"na",rank:0};
+  const att=num(info.attwl), wrn=num(info.wrnwl), alm=num(info.almwl), srs=num(info.srswl);
+  if(!isNaN(srs)&&w>=srs) return {k:"crit",label:"심각",cls:"crit",rank:4};
+  if(!isNaN(alm)&&w>=alm) return {k:"danger",label:"경보",cls:"danger",rank:3};
+  if(!isNaN(wrn)&&w>=wrn) return {k:"warn",label:"경계",cls:"warn",rank:2.5};
+  if(!isNaN(att)&&w>=att) return {k:"warn",label:"주의",cls:"warn",rank:2};
+  // 임계값 자체가 하나도 없으면 기준없음
+  if(isNaN(att)&&isNaN(wrn)&&isNaN(alm)&&isNaN(srs)) return {k:"na",label:"기준없음",cls:"na",rank:.5};
+  return {k:"ok",label:"정상",cls:"ok",rank:1};
+}
+const COLORS={ok:"#1f9d57",warn:"#e08a00",danger:"#d63838",crit:"#9c1b1b",na:"#8a94a3"};
+
+/* ====================== DAM coords ====================== */
+function damCoord(d){
+  let lon=dms2dec(d.lon), lat=dms2dec(d.lat);
+  if(isNaN(lon)||isNaN(lat)){ const f=DAM_FALLBACK[d.obsnm]; if(f){lon=f[0];lat=f[1];} }
+  return (isNaN(lon)||isNaN(lat))?null:[lat,lon];
+}
+function genCoord(o,lonk="lon",latk="lat"){ const lon=dms2dec(o[lonk]),lat=dms2dec(o[latk]); return (isNaN(lon)||isNaN(lat))?null:[lat,lon]; }
+
+/* ====================== LOAD INFO LISTS ====================== */
+async function loadInfoLists(){
+  const tasks = [
+    apiGet("dam/info.json").then(a=>state.dams=a).catch(e=>{state.dams=[];throw e;}),
+    apiGet("waterlevel/info.json").then(a=>state.wls=a).catch(()=>state.wls=[]),
+    apiGet("rainfall/info.json").then(a=>state.rfs=a).catch(()=>state.rfs=[])
+  ];
+  // dam 은 필수, 나머지는 best-effort
+  await tasks[0];
+  await Promise.allSettled(tasks.slice(1));
+  populateSelectors();
+}
+function populateSelectors(){
+  const damsSorted=[...state.dams].sort((a,b)=>a.obsnm.localeCompare(b.obsnm,"ko"));
+  const opt=d=>`<option value="${d.dmobscd}">${d.obsnm} (${d.addr||""})</option>`;
+  const html=damsSorted.map(opt).join("");
+  ["#damSelect","#fcSelect","#brSelect"].forEach(sel=>{ const el=$(sel); if(el){ el.innerHTML=`<option value="">댐 선택…</option>`+html; } });
+  const rfSorted=[...state.rfs].sort((a,b)=>a.obsnm.localeCompare(b.obsnm,"ko"));
+  $("#rfSelect").innerHTML=`<option value="">강수 관측소 선택…</option>`+rfSorted.map(r=>`<option value="${r.rfobscd}">${r.obsnm} (${r.addr||""})</option>`).join("");
+}
+
+/* ====================== LATEST SNAPSHOT (small TS) ====================== */
+async function latestDam(code){
+  const c = await apiGet(`dam/list/1H/${code}/${nowYmdhm(-1000*60*60*6)}/${nowYmdhm()}.json`);
+  return latestValued(sortAsc(c),"swl");
+}
+async function latestWl(code){
+  const c = await apiGet(`waterlevel/list/1H/${code}/${nowYmdhm(-1000*60*60*6)}/${nowYmdhm()}.json`);
+  return latestValued(sortAsc(c),"wl");
+}
+
+/* ====================== DASHBOARD ====================== */
+function pickFeaturedDams(){
+  const byName={}; state.dams.forEach(d=>byName[d.obsnm]=d);
+  const out=[]; const seen=new Set();
+  FEATURED.forEach(n=>{ if(byName[n]){out.push(byName[n]);seen.add(byName[n].dmobscd);} });
+  // 부족하면 fldlmtwl 있는 댐으로 채움
+  if(out.length<10){ state.dams.filter(d=>hasv(d.fldlmtwl)&&!seen.has(d.dmobscd)).slice(0,14-out.length).forEach(d=>out.push(d)); }
+  return out.length?out:state.dams.slice(0,14);
+}
+async function renderDashboard(){
+  $("#dashError").innerHTML="";
+  const grid=$("#damGrid");
+  if(!state.dams.length){ grid.innerHTML=`<div class="empty"><div class="ei">⚠️</div>댐 목록을 불러오지 못했습니다. 설정에서 인증키를 확인하세요.</div>`; return; }
+  const featured=pickFeaturedDams();
+  grid.innerHTML=featured.map(d=>damCardShell(d)).join("");
+  $("#dashSub").textContent=`주요 다목적댐 ${featured.length}곳 · 마지막 업데이트 ${nowLabel()}`;
+  // fetch each latest in parallel (limited)
+  const results=await Promise.allSettled(featured.map(async d=>{
+    const series = await apiGet(`dam/list/1H/${d.dmobscd}/${nowYmdhm(-1000*60*60*24)}/${nowYmdhm()}.json`).catch(()=>[]);
+    return {d, series:sortAsc(series)};
+  }));
+  let okCount=0,warnCount=0,critCount=0;
+  results.forEach(r=>{
+    if(r.status!=="fulfilled") return;
+    const {d,series}=r.value;
+    const last=latestValued(series,"swl");
+    if(last) state.damData[d.dmobscd]={info:d,last};
+    const risk=last?damRisk(last.swl,d.fldlmtwl,d.pfh):{k:"na",label:"데이터없음",cls:"na"};
+    if(risk.k==="ok")okCount++; else if(risk.k==="warn")warnCount++; else if(risk.k==="crit")critCount++;
+    fillDamCard(d,last,series,risk);
+  });
+  $("#dashKpis").innerHTML=`
+    <div class="kpi"><div class="kl">모니터링 댐</div><div class="kv">${featured.length}</div></div>
+    <div class="kpi"><div class="kl">정상</div><div class="kv ok">${okCount}</div></div>
+    <div class="kpi"><div class="kl">제한수위 초과</div><div class="kv warn">${warnCount}</div></div>
+    <div class="kpi"><div class="kl">계획홍수위 초과</div><div class="kv danger">${critCount}</div></div>`;
+  setUpdTime();
+}
+function damCardShell(d){
+  return `<div class="card clickable" data-dam="${d.dmobscd}" id="card-${d.dmobscd}">
+    <div class="stripe st-na"></div>
+    <div class="card-head"><div><div class="card-name">${d.obsnm}</div><div class="card-sub">${d.addr||""} · ${d.agcnm||""}</div></div>
+      <span class="badge b-na">로딩…</span></div>
+    <div class="metrics"><div class="metric"><div class="ml">현재 저수위</div><div class="mv"><span class="loader"></span></div></div></div>
+  </div>`;
+}
+function fillDamCard(d,last,series,risk){
+  const el=$("#card-"+d.dmobscd); if(!el) return;
+  const swl=last?num(last.swl):NaN, lim=num(d.fldlmtwl), pfh=num(d.pfh);
+  // gauge: 0 .. pfh (or max of series)
+  let top = !isNaN(pfh)?pfh : Math.max(...series.map(x=>num(x.swl)).filter(n=>!isNaN(n)),swl||1);
+  let bottom = Math.min(...series.map(x=>num(x.swl)).filter(n=>!isNaN(n)), !isNaN(lim)?lim*0.9:(swl-5));
+  if(!isFinite(bottom)) bottom = top-20;
+  const pct = isNaN(swl)?0:Math.max(2,Math.min(100,((swl-bottom)/(top-bottom))*100));
+  const limPct = !isNaN(lim)?Math.max(0,Math.min(100,((lim-bottom)/(top-bottom))*100)):null;
+  el.innerHTML=`
+    <div class="stripe st-${risk.cls}"></div>
+    <div class="card-head"><div><div class="card-name">${d.obsnm}</div><div class="card-sub">${d.addr||""} · ${d.agcnm||""}</div></div>
+      <span class="badge b-${risk.cls}">${risk.label}</span></div>
+    <div class="metrics">
+      <div class="metric"><div class="ml">현재 저수위 (EL.m)</div><div class="mv">${fmt(swl,2)}</div></div>
+      <div class="metric"><div class="ml">계획홍수위 / 제한수위</div><div class="mv" style="font-size:14px">${isNaN(pfh)?"–":fmt(pfh,1)} <small>/ ${isNaN(lim)?"–":fmt(lim,1)}</small></div></div>
+      <div class="metric"><div class="ml">유입량 (㎥/s)</div><div class="mv" style="font-size:15px">${last?fmt(last.inf,1):"–"}</div></div>
+      <div class="metric"><div class="ml">총방류량 (㎥/s)</div><div class="mv" style="font-size:15px">${last?fmt(last.tototf,1):"–"}</div></div>
+    </div>
+    <div class="gauge"><div class="fill" style="width:${pct}%;background:${COLORS[risk.cls]}"></div>
+      ${limPct!==null?`<div class="thresh-marker" style="left:${limPct}%"></div>`:""}</div>
+    <div class="gauge-labels"><span>저수위 게이지</span><span>${last?ymdhmLabel(last.ymdhm):""}</span></div>
+    <canvas class="spark" id="spark-${d.dmobscd}"></canvas>`;
+  // sparkline
+  drawSpark(`spark-${d.dmobscd}`, series.map(x=>num(x.swl)), COLORS[risk.cls]);
+}
+function drawSpark(id,data,color){
+  const c=document.getElementById(id); if(!c) return;
+  const vals=data.filter(n=>!isNaN(n));
+  if(state.charts[id]){state.charts[id].destroy();}
+  if(vals.length<2){ return; }
+  state.charts[id]=new Chart(c,{type:"line",data:{labels:vals.map((_,i)=>i),
+    datasets:[{data:vals,borderColor:color,borderWidth:2,fill:true,
+      backgroundColor:color+"22",pointRadius:0,tension:.35}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{enabled:false}},
+      scales:{x:{display:false},y:{display:false}},animation:false}});
+}
+
+/* ====================== DAM DETAIL ====================== */
+let damCurrent=null, damCurRange={time:"1H",h:72};
+async function openDam(code){
+  switchView("dam");
+  $("#damSelect").value=code;
+  damCurrent=code;
+  await renderDamDetail();
+}
+async function renderDamDetail(){
+  const code=$("#damSelect").value;
+  if(!code){ $("#damDetailBody").innerHTML=`<div class="empty"><div class="ei">🏞️</div>댐을 선택하세요.</div>`; return; }
+  damCurrent=code;
+  const info=state.dams.find(d=>d.dmobscd===code); if(!info) return;
+  $("#damDetailTitle").textContent=info.obsnm;
+  $("#damDetailSub").textContent=`${info.addr||""} ${info.etcaddr||""} · ${info.agcnm||""} · 코드 ${code}`;
+  $("#damDetailBody").innerHTML=`<div class="empty"><div class="ei"><span class="loader"></span></div>시계열을 불러오는 중…</div>`;
+  const {time,h}=damCurRange;
+  let series;
+  try{ series=sortAsc(await apiGet(`dam/list/${time}/${code}/${nowYmdhm(-1000*60*60*h)}/${nowYmdhm()}.json`)); }
+  catch(e){ $("#damDetailBody").innerHTML=`<div class="errbox"><span>⚠️</span><div>시계열 로드 실패: ${e.message}</div></div>`; return; }
+  const last=latestValued(series,"swl");
+  const risk=last?damRisk(last.swl,info.fldlmtwl,info.pfh):{cls:"na",label:"데이터없음"};
+  const spec=[
+    ["계획홍수위 (PFH)", hasv(info.pfh)?fmt(info.pfh,1)+" EL.m":"–"],
+    ["홍수기제한수위 (FLDLMTWL)", hasv(info.fldlmtwl)?fmt(info.fldlmtwl,1)+" EL.m":"–"],
+    ["현재 저수위 (SWL)", last?fmt(last.swl,2)+" EL.m":"–"],
+    ["현재 저수량 (SFW)", last?fmt(last.sfw,1)+" 백만㎥":"–"],
+    ["공용량 (ECPC)", last?fmt(last.ecpc,1)+" 백만㎥":"–"],
+    ["유입량 (INF)", last?fmt(last.inf,1)+" ㎥/s":"–"],
+    ["총방류량 (TOTOTF)", last?fmt(last.tototf,1)+" ㎥/s":"–"],
+    ["관측시각", last?ymdhmLabel(last.ymdhm):"–"],
+    ["관리기관", info.agcnm||"–"]
+  ];
+  $("#damDetailBody").innerHTML=`
+    <div class="detail-layout">
+      <div>
+        <div class="panel-card" style="padding:0;max-width:none">
+          <div style="padding:14px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+            <strong>제원 · 현황</strong><span class="badge b-${risk.cls}">${risk.label}</span></div>
+          <table class="spec-table"><tbody>${spec.map(r=>`<tr><td>${r[0]}</td><td>${r[1]}</td></tr>`).join("")}</tbody></table>
+        </div>
+      </div>
+      <div class="chart-box">
+        <h3>저수위 · 유입량 · 방류량 시계열 <span class="card-sub">(${series.length}개 · ${time})</span></h3>
+        <div class="canvas-holder"><canvas id="damChart"></canvas></div>
+      </div>
+    </div>`;
+  drawDamChart(series);
+}
+function drawDamChart(series){
+  const c=$("#damChart"); if(!c) return;
+  if(state.charts.damChart) state.charts.damChart.destroy();
+  const labels=series.map(x=>ymdhmLabel(x.ymdhm));
+  const dark=document.documentElement.getAttribute("data-theme")==="dark";
+  const grid=dark?"#27323f":"#eef1f5", tick=dark?"#9fadbd":"#5b6675";
+  state.charts.damChart=new Chart(c,{type:"line",data:{labels,datasets:[
+    {label:"저수위 EL.m",data:series.map(x=>num(x.swl)),borderColor:"#1761c4",backgroundColor:"#1761c422",yAxisID:"y",borderWidth:2,pointRadius:0,tension:.3,fill:true},
+    {label:"유입량 ㎥/s",data:series.map(x=>num(x.inf)),borderColor:"#1f9d57",yAxisID:"y1",borderWidth:1.6,pointRadius:0,tension:.3},
+    {label:"총방류량 ㎥/s",data:series.map(x=>num(x.tototf)),borderColor:"#d63838",yAxisID:"y1",borderWidth:1.6,pointRadius:0,tension:.3}
+  ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:"index",intersect:false},
+    plugins:{legend:{labels:{color:tick,boxWidth:12}}},
+    scales:{
+      x:{ticks:{color:tick,maxTicksLimit:10,maxRotation:0},grid:{color:grid}},
+      y:{position:"left",title:{display:true,text:"저수위 (EL.m)",color:tick},ticks:{color:tick},grid:{color:grid}},
+      y1:{position:"right",title:{display:true,text:"유량 (㎥/s)",color:tick},ticks:{color:tick},grid:{drawOnChartArea:false}}
+    }}});
+}
+
+/* ====================== WATERLEVEL VIEW ====================== */
+let wlLoaded=false;
+async function renderWaterlevel(force){
+  $("#wlError").innerHTML="";
+  if(!state.wls.length){ $("#wlBody").innerHTML=`<div class="empty"><div class="ei">⚠️</div>수위 관측소 목록을 불러오지 못했습니다.</div>`; return; }
+  if(wlLoaded && !force){ filterWlTable(); return; }
+  $("#wlBody").innerHTML=`<div class="empty"><div class="ei"><span class="loader"></span></div>대표 관측소 현재 수위를 불러오는 중… (예보지점 우선)</div>`;
+  // 모든 관측소 실시간 호출은 과다 → 예보지점(fstnyn=Y) + 임계값 보유 지점 우선
+  const priority = state.wls.filter(w=>w.fstnyn==="Y" || hasv(w.attwl));
+  const targets = priority.slice(0,60);
+  const res=await Promise.allSettled(targets.map(async w=>{
+    const c=await apiGet(`waterlevel/list/1H/${w.wlobscd}/${nowYmdhm(-1000*60*60*6)}/${nowYmdhm()}.json`).catch(()=>[]);
+    return {w,last:latestValued(sortAsc(c),"wl")};
+  }));
+  res.forEach(r=>{ if(r.status==="fulfilled"&&r.value.last) state.wlData[r.value.w.wlobscd]={info:r.value.w,last:r.value.last}; });
+  wlLoaded=true;
+  buildWlTable();
+  setUpdTime();
+}
+function buildWlTable(){
+  const rows=Object.values(state.wlData).map(({info,last})=>{
+    const risk=wlRisk(last.wl,info);
+    return {info,last,risk};
+  });
+  rows.sort((a,b)=>b.risk.rank-a.risk.rank || num(b.last.wl)-num(a.last.wl));
+  state._wlRows=rows;
+  filterWlTable();
+}
+function filterWlTable(){
+  const q=($("#wlSearch").value||"").trim();
+  let rows=state._wlRows||[];
+  if(q) rows=rows.filter(r=>r.info.obsnm.includes(q)||(r.info.addr||"").includes(q));
+  if(!rows.length){ $("#wlBody").innerHTML=`<div class="empty"><div class="ei">🔍</div>표시할 관측소가 없습니다.</div>`; return; }
+  const body=rows.map(({info,last,risk})=>{
+    const w=num(last.wl);
+    return `<tr class="clickable" data-wl="${info.wlobscd}">
+      <td><span class="pill b-${risk.cls}">${risk.label}</span></td>
+      <td><strong>${info.obsnm}</strong><div class="card-sub">${info.addr||""}</div></td>
+      <td class="num">${fmt(w,2)}</td>
+      <td>${thresholdBar(info,w)}</td>
+      <td class="num">${hasv(last.fw)?fmt(last.fw,1):"–"}</td>
+      <td class="num card-sub">주${hasv(info.attwl)?fmt(info.attwl,1):"–"}/경${hasv(info.wrnwl)?fmt(info.wrnwl,1):"–"}/보${hasv(info.almwl)?fmt(info.almwl,1):"–"}/심${hasv(info.srswl)?fmt(info.srswl,1):"–"}</td>
+      <td class="card-sub">${ymdhmLabel(last.ymdhm)}</td>
+    </tr>`;
+  }).join("");
+  $("#wlBody").innerHTML=`<div class="card-sub" style="margin-bottom:8px">대표/예보지점 ${rows.length}곳 (위험 단계 상단 정렬)</div>
+    <div class="tbl-wrap"><table>
+    <thead><tr><th>단계</th><th>관측소</th><th class="num">수위(m)</th><th>단계 게이지</th><th class="num">유량(㎥/s)</th><th class="num">임계값(주/경/보/심)</th><th>관측시각</th></tr></thead>
+    <tbody>${body}</tbody></table></div>`;
+}
+function thresholdBar(info,w){
+  const att=num(info.attwl),wrn=num(info.wrnwl),alm=num(info.almwl),srs=num(info.srswl);
+  const ths=[att,wrn,alm,srs].filter(n=>!isNaN(n));
+  if(!ths.length) return `<span class="card-sub">기준없음</span>`;
+  const max=Math.max(...ths, isNaN(w)?0:w)*1.08;
+  const seg=(v,col)=>isNaN(v)?"":`<div class="seg" style="width:${(v/max)*100}%;background:${col}"></div>`;
+  // build cumulative widths
+  let parts="",prev=0;
+  const steps=[[att,COLORS.ok],[wrn,COLORS.warn],[alm,COLORS.danger],[srs,COLORS.crit]];
+  steps.forEach(([v,col])=>{ if(!isNaN(v)){ const wd=((v-prev)/max)*100; if(wd>0)parts+=`<div class="seg" style="width:${wd}%;background:${col}"></div>`; prev=v; } });
+  parts+=`<div class="seg" style="flex:1;background:${COLORS.crit}"></div>`;
+  const mk=isNaN(w)?"":`<div class="thresh-marker" style="left:${Math.min(100,(w/max)*100)}%"></div>`;
+  return `<div class="thresh-bar" style="min-width:120px">${parts}${mk}</div>`;
+}
+// waterlevel detail (inline chart in a modal-ish expansion → reuse rainfall-style)
+async function openWlDetail(code){
+  const info=state.wls.find(w=>w.wlobscd===code); if(!info) return;
+  switchView("waterlevel");
+  $("#wlBody").insertAdjacentHTML("afterbegin",`<div id="wlDetailBox" class="chart-box" style="margin-bottom:14px"><h3>${info.obsnm} — 수위·유량 시계열 <span class="loader"></span></h3><div class="canvas-holder"><canvas id="wlChart"></canvas></div></div>`);
+  try{
+    const series=sortAsc(await apiGet(`waterlevel/list/1H/${code}/${nowYmdhm(-1000*60*60*72)}/${nowYmdhm()}.json`));
+    const box=$("#wlDetailBox");
+    box.querySelector("h3").innerHTML=`${info.obsnm} — 수위·유량 시계열 <span class="card-sub">(${series.length}개 · 3일)</span> &nbsp;<a href="#" id="wlClose" style="font-size:12px">닫기 ✕</a>`;
+    const dark=document.documentElement.getAttribute("data-theme")==="dark";
+    const grid=dark?"#27323f":"#eef1f5",tick=dark?"#9fadbd":"#5b6675";
+    if(state.charts.wlChart)state.charts.wlChart.destroy();
+    const ann=[];
+    state.charts.wlChart=new Chart($("#wlChart"),{type:"line",data:{labels:series.map(x=>ymdhmLabel(x.ymdhm)),datasets:[
+      {label:"수위 m",data:series.map(x=>num(x.wl)),borderColor:"#1761c4",backgroundColor:"#1761c422",borderWidth:2,pointRadius:0,tension:.3,fill:true,yAxisID:"y"},
+      {label:"유량 ㎥/s",data:series.map(x=>num(x.fw)),borderColor:"#1f9d57",borderWidth:1.6,pointRadius:0,tension:.3,yAxisID:"y1"}
+    ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:"index",intersect:false},
+      plugins:{legend:{labels:{color:tick,boxWidth:12}}},
+      scales:{x:{ticks:{color:tick,maxTicksLimit:10,maxRotation:0},grid:{color:grid}},
+        y:{position:"left",title:{display:true,text:"수위(m)",color:tick},ticks:{color:tick},grid:{color:grid}},
+        y1:{position:"right",title:{display:true,text:"유량(㎥/s)",color:tick},ticks:{color:tick},grid:{drawOnChartArea:false}}}}});
+    $("#wlClose").onclick=e=>{e.preventDefault();box.remove();};
+  }catch(e){ $("#wlDetailBox").innerHTML=`<div class="errbox"><span>⚠️</span><div>로드 실패: ${e.message}</div></div>`; }
+}
+
+/* ====================== RAINFALL VIEW ====================== */
+let rfCurRange={time:"1H",h:72};
+async function renderRainfall(){
+  const code=$("#rfSelect").value;
+  $("#rfError").innerHTML="";
+  if(!code){ $("#rfBody").innerHTML=`<div class="empty"><div class="ei">🌧️</div>강수 관측소를 선택하세요.</div>`; return; }
+  const info=state.rfs.find(r=>r.rfobscd===code);
+  $("#rfBody").innerHTML=`<div class="empty"><div class="ei"><span class="loader"></span></div>강수 시계열을 불러오는 중…</div>`;
+  const {time,h}=rfCurRange;
+  let series;
+  try{ series=sortAsc(await apiGet(`rainfall/list/${time}/${code}/${nowYmdhm(-1000*60*60*h)}/${nowYmdhm()}.json`)); }
+  catch(e){ $("#rfBody").innerHTML=`<div class="errbox"><span>⚠️</span><div>로드 실패: ${e.message}</div></div>`; return; }
+  const vals=series.map(x=>num(x.rf)).map(n=>isNaN(n)?0:n);
+  const total=vals.reduce((a,b)=>a+b,0);
+  const maxv=Math.max(...vals,0);
+  // cumulative
+  let cum=0; const cumArr=vals.map(v=>cum+=v);
+  $("#rfBody").innerHTML=`
+    <div class="kpi-row">
+      <div class="kpi"><div class="kl">관측소</div><div class="kv" style="font-size:18px">${info?info.obsnm:code}</div></div>
+      <div class="kpi"><div class="kl">기간 누적 강수</div><div class="kv ${total>50?'warn':''}">${fmt(total,1)}<small style="font-size:13px"> mm</small></div></div>
+      <div class="kpi"><div class="kl">최대 시간강수</div><div class="kv ${maxv>20?'danger':''}">${fmt(maxv,1)}<small style="font-size:13px"> mm</small></div></div>
+      <div class="kpi"><div class="kl">관측 지점</div><div class="kv" style="font-size:15px">${info?(info.addr||""):""}</div></div>
+    </div>
+    <div class="chart-box"><h3>강수량 막대 + 누적 (${series.length}개 · ${time})</h3><div class="canvas-holder"><canvas id="rfChart"></canvas></div></div>`;
+  const dark=document.documentElement.getAttribute("data-theme")==="dark";
+  const grid=dark?"#27323f":"#eef1f5",tick=dark?"#9fadbd":"#5b6675";
+  if(state.charts.rfChart)state.charts.rfChart.destroy();
+  state.charts.rfChart=new Chart($("#rfChart"),{data:{labels:series.map(x=>ymdhmLabel(x.ymdhm)),datasets:[
+    {type:"bar",label:"강수량 mm",data:vals,backgroundColor:"#2aa6e0",yAxisID:"y",order:2},
+    {type:"line",label:"누적 mm",data:cumArr,borderColor:"#d63838",borderWidth:2,pointRadius:0,tension:.2,yAxisID:"y1",order:1}
+  ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:"index",intersect:false},
+    plugins:{legend:{labels:{color:tick,boxWidth:12}}},
+    scales:{x:{ticks:{color:tick,maxTicksLimit:12,maxRotation:0},grid:{color:grid}},
+      y:{position:"left",title:{display:true,text:"강수(mm)",color:tick},ticks:{color:tick},grid:{color:grid},beginAtZero:true},
+      y1:{position:"right",title:{display:true,text:"누적(mm)",color:tick},ticks:{color:tick},grid:{drawOnChartArea:false},beginAtZero:true}}}});
+}
+
+/* ====================== FORECAST (Open-Meteo) ====================== */
+async function renderForecast(){
+  const code=$("#fcSelect").value;
+  if(!code){ $("#fcBody").innerHTML=`<div class="empty"><div class="ei">🌦️</div>댐을 선택하세요.</div>`; return; }
+  const info=state.dams.find(d=>d.dmobscd===code);
+  const co=damCoord(info);
+  if(!co){ $("#fcBody").innerHTML=`<div class="errbox"><span>⚠️</span><div>좌표를 확인할 수 없습니다.</div></div>`; return; }
+  const [lat,lon]=co;
+  $("#fcBody").innerHTML=`<div class="empty"><div class="ei"><span class="loader"></span></div>유역 예보를 불러오는 중…</div>`;
+  const url=`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=precipitation_sum,precipitation_probability_max,temperature_2m_max,temperature_2m_min&current=temperature_2m,precipitation,relative_humidity_2m,wind_speed_10m&timezone=Asia%2FSeoul&forecast_days=7`;
+  let j;
+  try{ j=await fetchJSON(url); }
+  catch(e){ $("#fcBody").innerHTML=`<div class="errbox"><span>⚠️</span><div>Open-Meteo 로드 실패: ${e.message}</div></div>`; return; }
+  const c=j.current||{}, d=j.daily||{};
+  const wkday=["일","월","화","수","목","금","토"];
+  const days=(d.time||[]).map((t,i)=>{
+    const dt=new Date(t); const rain=d.precipitation_sum?d.precipitation_sum[i]:0;
+    return `<div class="fc-day"><div class="d">${t.slice(5)} (${wkday[dt.getDay()]})</div>
+      <div class="rain" style="${rain>=30?'color:var(--danger)':rain>=10?'color:var(--warn)':''}">${fmt(rain,1)}<span style="font-size:11px">mm</span></div>
+      <div class="prob">강수확률 ${d.precipitation_probability_max?d.precipitation_probability_max[i]:0}%</div>
+      <div class="prob">${d.temperature_2m_min?fmt(d.temperature_2m_min[i],0):"–"}° / ${d.temperature_2m_max?fmt(d.temperature_2m_max[i],0):"–"}°</div></div>`;
+  }).join("");
+  const total7=(d.precipitation_sum||[]).reduce((a,b)=>a+(b||0),0);
+  $("#fcBody").innerHTML=`
+    <div class="now-strip">
+      <div class="nb"><div class="nv">${fmt(c.temperature_2m,1)}°</div><div class="nl">현재기온</div></div>
+      <div class="nb"><div class="nv">${fmt(c.precipitation,1)}</div><div class="nl">현재강수 mm</div></div>
+      <div class="nb"><div class="nv">${fmt(c.relative_humidity_2m,0)}%</div><div class="nl">습도</div></div>
+      <div class="nb"><div class="nv">${fmt(c.wind_speed_10m,1)}</div><div class="nl">풍속 m/s</div></div>
+      <div class="nb"><div class="nv">${fmt(total7,1)}</div><div class="nl">7일 누적예보 mm</div></div>
+    </div>
+    <h3 style="margin:18px 0 4px">${info.obsnm} 유역 · 7일 강수 예보</h3>
+    <div class="card-sub">좌표 ${lat.toFixed(3)}, ${lon.toFixed(3)} · Asia/Seoul</div>
+    <div class="fc-days">${days}</div>`;
+}
+
+/* ====================== BRIEFING ====================== */
+async function genBriefing(){
+  const code=$("#brSelect").value;
+  if(!code){ toast("댐을 먼저 선택하세요"); return; }
+  const info=state.dams.find(d=>d.dmobscd===code);
+  $("#brBody").innerHTML=`<div class="empty"><div class="ei"><span class="loader"></span></div>댐 데이터 + 예보 종합 중…</div>`;
+  let last=null, fc=null;
+  try{
+    const series=sortAsc(await apiGet(`dam/list/1H/${code}/${nowYmdhm(-1000*60*60*24)}/${nowYmdhm()}.json`));
+    last=latestValued(series,"swl");
+    const co=damCoord(info);
+    if(co){ const[lat,lon]=co;
+      fc=await fetchJSON(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=precipitation_sum,precipitation_probability_max&current=temperature_2m,precipitation&timezone=Asia%2FSeoul&forecast_days=3`).catch(()=>null);
+    }
+  }catch(e){ $("#brBody").innerHTML=`<div class="errbox"><span>⚠️</span><div>브리핑 생성 실패: ${e.message}</div></div>`; return; }
+  const risk=last?damRisk(last.swl,info.fldlmtwl,info.pfh):{label:"데이터없음"};
+  const swl=last?num(last.swl):NaN, pfh=num(info.pfh), lim=num(info.fldlmtwl);
+  const marginPfh=(!isNaN(swl)&&!isNaN(pfh))?(pfh-swl):NaN;
+  const marginLim=(!isNaN(swl)&&!isNaN(lim))?(lim-swl):NaN;
+  let rain3="–",prob="–";
+  if(fc&&fc.daily){ rain3=fmt((fc.daily.precipitation_sum||[]).reduce((a,b)=>a+(b||0),0),1); prob=Math.max(...(fc.daily.precipitation_probability_max||[0])); }
+  const inOut=(last&&!isNaN(num(last.inf))&&!isNaN(num(last.tototf)))?(num(last.inf)-num(last.tototf)):NaN;
+  const txt=
+`━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  💧 수문 브리핑 — ${info.obsnm}
+  ${nowLabel()} 기준
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+【 종합 판정 】  ${riskEmoji(risk.label)} ${risk.label}
+
+【 댐 현황 】 (관측 ${last?ymdhmLabel(last.ymdhm):"–"})
+ • 현재 저수위 : ${last?fmt(last.swl,2):"–"} EL.m
+ • 계획홍수위(PFH) : ${hasv(info.pfh)?fmt(info.pfh,1):"–"} EL.m  ${!isNaN(marginPfh)?`(여유 ${fmt(marginPfh,2)} m)`:""}
+ • 제한수위(FLDLMTWL) : ${hasv(info.fldlmtwl)?fmt(info.fldlmtwl,1):"–"} EL.m  ${!isNaN(marginLim)?`(여유 ${fmt(marginLim,2)} m)`:""}
+ • 저수량(SFW) : ${last?fmt(last.sfw,1):"–"} 백만㎥
+ • 홍수조절 가용용량(ECPC) : ${last?fmt(last.ecpc,1):"–"} 백만㎥
+ • 유입량 : ${last?fmt(last.inf,1):"–"} ㎥/s
+ • 총방류량 : ${last?fmt(last.tototf,1):"–"} ㎥/s
+ • 순유입(유입-방류) : ${!isNaN(inOut)?fmt(inOut,1)+" ㎥/s "+(inOut>0?"(저수 증가 ▲)":"(저수 감소 ▼)"):"–"}
+
+【 유역 강수 예보 (3일) 】
+ • 3일 누적 예보강수 : ${rain3} mm
+ • 최대 강수확률 : ${prob}${typeof prob==="number"?"%":""}
+${fc&&fc.current?` • 현재 기온/강수 : ${fmt(fc.current.temperature_2m,1)}° / ${fmt(fc.current.precipitation,1)} mm`:""}
+
+【 코멘트 】
+ ${briefComment(risk,marginPfh,marginLim,rain3,inOut)}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ 출처: 한강홍수통제소 · Open-Meteo
+ ※ 참고용 자동 생성 브리핑입니다.`;
+  $("#brBody").innerHTML=`<div class="briefing" id="briefingText">${escapeHtml(txt)}</div>`;
+  state._brief=txt;
+}
+function riskEmoji(l){ return l.includes("계획홍수위")?"🔴":l.includes("제한")?"🟠":l.includes("정상")?"🟢":"⚪"; }
+function briefComment(risk,mP,mL,rain3,inOut){
+  const lines=[];
+  if(risk.label.includes("계획홍수위")) lines.push("⚠️ 계획홍수위를 초과했습니다. 방류 운영 및 하류 상황을 즉시 확인하세요.");
+  else if(risk.label.includes("제한")) lines.push("🟠 홍수기 제한수위를 초과했습니다. 유입 추이와 예비방류 필요성을 점검하세요.");
+  else lines.push("🟢 저수위는 정상 범위입니다.");
+  if(!isNaN(mP)&&mP<3) lines.push(`계획홍수위까지 여유가 ${fmt(mP,2)}m로 좁습니다.`);
+  if(parseFloat(rain3)>=30) lines.push(`향후 3일 예보강수 ${rain3}mm — 유입 증가에 대비가 필요합니다.`);
+  else if(parseFloat(rain3)>=10) lines.push(`향후 강수 ${rain3}mm 예보 — 추이 관찰을 권장합니다.`);
+  if(!isNaN(inOut)&&inOut>50) lines.push("순유입량이 커 저수위 상승 추세입니다.");
+  return lines.join("\n ");
+}
+function escapeHtml(s){ return s.replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c])); }
+
+/* ====================== MAP ====================== */
+function buildMap(){
+  if(state.mapBuilt){ refreshMapMarkers(); setTimeout(()=>state.map.invalidateSize(),100); return; }
+  state.map=L.map("map",{center:[36.5,127.8],zoom:7,scrollWheelZoom:true});
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:18,attribution:"© OpenStreetMap"}).addTo(state.map);
+  state.layers.dam=L.layerGroup().addTo(state.map);
+  state.layers.wl=L.layerGroup().addTo(state.map);
+  state.layers.rf=L.layerGroup();
+  state.mapBuilt=true;
+  refreshMapMarkers();
+  $("#lyrDam").onchange=e=>toggleLayer("dam",e.target.checked);
+  $("#lyrWl").onchange=e=>toggleLayer("wl",e.target.checked);
+  $("#lyrRf").onchange=e=>{ if(e.target.checked){ if(!state._rfMarkersBuilt) buildRfMarkers(); state.layers.rf.addTo(state.map);} else state.map.removeLayer(state.layers.rf); };
+  setTimeout(()=>state.map.invalidateSize(),120);
+}
+function toggleLayer(k,on){ if(on) state.layers[k].addTo(state.map); else state.map.removeLayer(state.layers[k]); }
+function mkIcon(color){ return L.divIcon({className:"",html:`<div style="width:15px;height:15px;border-radius:50%;background:${color};border:2.5px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4)"></div>`,iconSize:[15,15],iconAnchor:[7,7]}); }
+function refreshMapMarkers(){
+  state.layers.dam.clearLayers(); state.layers.wl.clearLayers();
+  let nd=0,nw=0;
+  // dams
+  state.dams.forEach(d=>{
+    const co=damCoord(d); if(!co) return;
+    const snap=state.damData[d.dmobscd];
+    const risk=snap?damRisk(snap.last.swl,d.fldlmtwl,d.pfh):{cls:"na",label:"미수집"};
+    const m=L.marker(co,{icon:mkIcon(COLORS[risk.cls])}).addTo(state.layers.dam);
+    m.bindPopup(damPopup(d,snap,risk));
+    nd++;
+  });
+  // waterlevels (그려진 스냅샷만; 전부는 과다)
+  Object.values(state.wlData).forEach(({info,last})=>{
+    const co=genCoord(info); if(!co) return;
+    const risk=wlRisk(last.wl,info);
+    const m=L.marker(co,{icon:mkIcon(COLORS[risk.cls])}).addTo(state.layers.wl);
+    m.bindPopup(wlPopup(info,last,risk));
+    nw++;
+  });
+  $("#cntDam").textContent=`(${nd})`; $("#cntWl").textContent=`(${nw})`; $("#cntRf").textContent=`(${state.rfs.length})`;
+  $("#mapStatus").textContent=`표시 마커: 댐 ${nd} · 수위 ${nw}`;
+}
+function buildRfMarkers(){
+  let n=0;
+  state.rfs.forEach(r=>{ const co=genCoord(r); if(!co) return;
+    L.marker(co,{icon:mkIcon("#2aa6e0")}).addTo(state.layers.rf)
+     .bindPopup(`<div class="pop-name">🌧️ ${r.obsnm}</div><div class="pop-row"><span>주소</span><span>${r.addr||""}</span></div><div class="pop-row"><span>코드</span><span>${r.rfobscd}</span></div><button class="pop-btn" onclick="window.__openRf('${r.rfobscd}')">강수 시계열 →</button>`);
+    n++; });
+  state._rfMarkersBuilt=true;
+  $("#cntRf").textContent=`(${n})`;
+}
+function damPopup(d,snap,risk){
+  const l=snap?snap.last:null;
+  return `<div class="pop-name">🏞️ ${d.obsnm} <span class="pill b-${risk.cls}" style="font-size:10px">${risk.label}</span></div>
+    <div class="pop-row"><span>저수위</span><span>${l?fmt(l.swl,2)+" EL.m":"미수집"}</span></div>
+    <div class="pop-row"><span>계획홍수위</span><span>${hasv(d.pfh)?fmt(d.pfh,1):"–"} EL.m</span></div>
+    <div class="pop-row"><span>유입/방류</span><span>${l?fmt(l.inf,0)+" / "+fmt(l.tototf,0):"–"} ㎥/s</span></div>
+    <button class="pop-btn" onclick="window.__openDam('${d.dmobscd}')">댐 상세 →</button>`;
+}
+function wlPopup(info,last,risk){
+  return `<div class="pop-name">📏 ${info.obsnm} <span class="pill b-${risk.cls}" style="font-size:10px">${risk.label}</span></div>
+    <div class="pop-row"><span>현재수위</span><span>${fmt(last.wl,2)} m</span></div>
+    <div class="pop-row"><span>주의/심각</span><span>${hasv(info.attwl)?fmt(info.attwl,1):"–"} / ${hasv(info.srswl)?fmt(info.srswl,1):"–"}</span></div>
+    <div class="pop-row"><span>관측</span><span>${ymdhmLabel(last.ymdhm)}</span></div>
+    <button class="pop-btn" onclick="window.__openWl('${info.wlobscd}')">수위 상세 →</button>`;
+}
+window.__openDam=c=>openDam(c);
+window.__openWl=c=>openWlDetail(c);
+window.__openRf=c=>{ switchView("rainfall"); $("#rfSelect").value=c; renderRainfall(); };
+
+/* ====================== GLOBAL SEARCH ====================== */
+function setupSearch(){
+  const inp=$("#globalSearch"), box=$("#searchResults");
+  inp.addEventListener("input",()=>{
+    const q=inp.value.trim(); if(q.length<1){ box.classList.remove("open"); return; }
+    const res=[];
+    state.dams.filter(d=>d.obsnm.includes(q)||(d.addr||"").includes(q)).slice(0,8).forEach(d=>res.push({t:"dam",code:d.dmobscd,name:d.obsnm,addr:d.addr}));
+    state.wls.filter(w=>w.obsnm.includes(q)||(w.addr||"").includes(q)).slice(0,8).forEach(w=>res.push({t:"wl",code:w.wlobscd,name:w.obsnm,addr:w.addr}));
+    state.rfs.filter(r=>r.obsnm.includes(q)||(r.addr||"").includes(q)).slice(0,6).forEach(r=>res.push({t:"rf",code:r.rfobscd,name:r.obsnm,addr:r.addr}));
+    if(!res.length){ box.innerHTML=`<div class="sr-item card-sub">검색 결과 없음</div>`; box.classList.add("open"); return; }
+    const tag={dam:["dam","댐"],wl:["wl","수위"],rf:["rf","강수"]};
+    box.innerHTML=res.map(r=>`<div class="sr-item" data-t="${r.t}" data-code="${r.code}">
+      <span class="sr-tag ${tag[r.t][0]}">${tag[r.t][1]}</span><span class="sr-name">${r.name}</span><span class="sr-addr">${r.addr||""}</span></div>`).join("");
+    box.classList.add("open");
+  });
+  box.addEventListener("click",e=>{
+    const it=e.target.closest(".sr-item"); if(!it||!it.dataset.code) return;
+    const t=it.dataset.t, c=it.dataset.code;
+    box.classList.remove("open"); inp.value="";
+    if(t==="dam") openDam(c);
+    else if(t==="wl") openWlDetail(c);
+    else { switchView("rainfall"); $("#rfSelect").value=c; renderRainfall(); }
+  });
+  document.addEventListener("click",e=>{ if(!e.target.closest(".search-wrap")) box.classList.remove("open"); });
+}
+
+/* ====================== VIEW SWITCH ====================== */
+function switchView(v){
+  $$(".tab").forEach(t=>t.classList.toggle("active",t.dataset.view===v));
+  $$(".view").forEach(s=>s.classList.toggle("active",s.id==="view-"+v));
+  if(v==="map") buildMap();
+  if(v==="waterlevel") renderWaterlevel();
+}
+
+/* ====================== AUTO REFRESH ====================== */
+function applyAuto(){
+  if(state.autoTimer){ clearInterval(state.autoTimer); state.autoTimer=null; }
+  const dot=$("#liveDot"), lbl=$("#autoLabel");
+  if(state.auto>0){
+    dot.classList.add("live"); lbl.textContent=`자동 ${state.auto>=60?state.auto/60+"분":state.auto+"초"}`;
+    state.autoTimer=setInterval(refreshActive, state.auto*1000);
+  }else{ dot.classList.remove("live"); lbl.textContent="수동"; }
+}
+async function refreshActive(){
+  const active=$$(".view.active")[0]; if(!active) return;
+  const v=active.id.replace("view-","");
+  if(v==="dashboard") await renderDashboard();
+  else if(v==="waterlevel"){ wlLoaded=false; await renderWaterlevel(true); }
+  else if(v==="map"){ await renderDashboard(); refreshMapMarkers(); }
+  else setUpdTime();
+}
+function setUpdTime(){ $("#updTime").textContent="갱신 "+nowLabel(); }
+
+/* ====================== THEME ====================== */
+function applyTheme(t){
+  document.documentElement.setAttribute("data-theme",t);
+  $("#themeBtn").textContent=t==="dark"?"☀️":"🌙";
+  // redraw charts that depend on theme
+  if($("#view-dam").classList.contains("active")&&damCurrent) renderDamDetail();
+}
+
+/* ====================== INIT ====================== */
+function loadSettingsToForm(){
+  $("#setKey").value=state.key;
+  $("#setAuto").value=String(state.auto);
+  $("#setTimeout").value=String(state.timeout);
+}
+async function boot(){
+  // theme
+  const t=localStorage.getItem(LS.theme)|| (window.matchMedia&&matchMedia("(prefers-color-scheme:dark)").matches?"dark":"light");
+  applyTheme(t);
+  loadSettingsToForm();
+  setupSearch();
+  // tabs
+  $("#tabs").addEventListener("click",e=>{ const b=e.target.closest(".tab"); if(b) switchView(b.dataset.view); });
+  // header buttons
+  $("#themeBtn").onclick=()=>{ const nt=document.documentElement.getAttribute("data-theme")==="dark"?"light":"dark"; localStorage.setItem(LS.theme,nt); applyTheme(nt); };
+  $("#refreshBtn").onclick=()=>{ wlLoaded=false; renderDashboard(); refreshActive(); toast("새로고침"); };
+  // dam detail
+  $("#damSelect").onchange=renderDamDetail;
+  $("#damRange").addEventListener("click",e=>{ const b=e.target.closest("button"); if(!b)return; $$("#damRange button").forEach(x=>x.classList.remove("active")); b.classList.add("active"); damCurRange={time:b.dataset.time,h:+b.dataset.h}; if(damCurrent)renderDamDetail(); });
+  // waterlevel search
+  $("#wlSearch").addEventListener("input",()=>filterWlTable());
+  $("#wlBody").addEventListener("click",e=>{ const tr=e.target.closest("tr[data-wl]"); if(tr) openWlDetail(tr.dataset.wl); });
+  // rainfall
+  $("#rfSelect").onchange=renderRainfall;
+  $("#rfRange").addEventListener("click",e=>{ const b=e.target.closest("button"); if(!b)return; $$("#rfRange button").forEach(x=>x.classList.remove("active")); b.classList.add("active"); rfCurRange={time:b.dataset.time,h:+b.dataset.h}; renderRainfall(); });
+  // forecast
+  $("#fcSelect").onchange=renderForecast;
+  $("#fcReload").onclick=renderForecast;
+  // briefing
+  $("#brGen").onclick=genBriefing;
+  $("#brCopy").onclick=()=>{ if(!state._brief){toast("먼저 브리핑을 생성하세요");return;} navigator.clipboard.writeText(state._brief).then(()=>toast("브리핑 복사됨 📋")).catch(()=>toast("복사 실패")); };
+  // dashboard card click
+  $("#damGrid").addEventListener("click",e=>{ const c=e.target.closest(".card[data-dam]"); if(c) openDam(c.dataset.dam); });
+  // settings
+  $("#setSave").onclick=()=>{
+    state.key=$("#setKey").value.trim()||DEMO_KEY;
+    state.auto=parseInt($("#setAuto").value,10);
+    state.timeout=parseInt($("#setTimeout").value,10);
+    localStorage.setItem(LS.key,state.key); localStorage.setItem(LS.auto,state.auto); localStorage.setItem(LS.timeout,state.timeout);
+    applyAuto(); toast("설정 저장됨"); wlLoaded=false;
+    reloadAll();
+  };
+  $("#setReset").onclick=()=>{ state.key=DEMO_KEY; localStorage.setItem(LS.key,DEMO_KEY); $("#setKey").value=DEMO_KEY; toast("데모키로 초기화"); reloadAll(); };
+
+  applyAuto();
+  await reloadAll();
+}
+async function reloadAll(){
+  try{
+    await loadInfoLists();
+  }catch(e){
+    $("#dashError").innerHTML=`<div class="errbox"><span>⚠️</span><div><strong>데이터 로드 실패:</strong> ${e.message}<br>설정 탭에서 인증키를 확인하세요. (네트워크/HTTP 환경이면 https로 접속 시도)</div></div>`;
+    $("#damGrid").innerHTML=`<div class="empty"><div class="ei">📡</div>관측소 목록을 불러올 수 없습니다.</div>`;
+    return;
+  }
+  await renderDashboard();
+}
+window.addEventListener("DOMContentLoaded",boot);
+</script>
+</body>
+</html>

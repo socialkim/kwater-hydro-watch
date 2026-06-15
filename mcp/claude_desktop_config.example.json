@@ -1,0 +1,27 @@
+{
+  "//설명": "Claude Desktop에 K-water 수문 MCP 서버를 등록하는 예시입니다.",
+  "//사용법": [
+    "1) 이 파일 내용을 Claude Desktop 설정 파일에 병합하세요.",
+    "   - Windows: %APPDATA%\\Claude\\claude_desktop_config.json",
+    "   - mac    : ~/Library/Application Support/Claude/claude_desktop_config.json",
+    "2) 아래 command/args 경로를 실제 환경에 맞게 수정하세요.",
+    "3) HRFCO_API_KEY 발급: https://www.hrfco.go.kr/web/openapiPage/certifyKey.do",
+    "   (미설정 시 코드 내 검증된 데모 공개키가 기본값으로 사용됩니다)",
+    "4) Claude Desktop을 완전히 종료 후 재시작하세요."
+  ],
+  "mcpServers": {
+    "kwater-hydro": {
+      "//windows-예시": "command는 python 또는 절대경로(예: C:\\\\Users\\\\kimdu\\\\AppData\\\\Local\\\\Programs\\\\Python\\\\Python312\\\\python.exe)",
+      "command": "python",
+      "args": [
+        "C:\\Users\\kimdu\\claude\\kwater\\mcp\\kwater_hydro_mcp.py"
+      ],
+      "//mac-예시-args": [
+        "/Users/사용자명/claude/kwater/mcp/kwater_hydro_mcp.py"
+      ],
+      "env": {
+        "HRFCO_API_KEY": "여기에-발급받은-인증키-입력-또는-비워두면-데모키-사용"
+      }
+    }
+  }
+}
